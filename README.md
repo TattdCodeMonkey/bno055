@@ -1,6 +1,6 @@
 # Bno055
 
-**TODO: Add description**
+This is an OTP application for reading the BNO055 absolute orientation sensor. It utilizes elixir_ale for configuring and reading the sensor on the i2c bus.
 
 ## Installation
 
