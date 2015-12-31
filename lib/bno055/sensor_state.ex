@@ -1,7 +1,7 @@
-defmodule BNO055.AsoState do
+defmodule BNO055.SensorState do
   use GenServer
 
-  def start_link(opts \\ []) do
+  def start_link(args, opts \\ []) do
     GenServer.start_link(__MODULE__, :ok, opts)
   end
 

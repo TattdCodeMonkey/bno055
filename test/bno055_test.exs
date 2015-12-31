@@ -1,6 +1,6 @@
-defmodule Bno055Test do
+defmodule BNO055Test do
   use ExUnit.Case
-  doctest Bno055
+  doctest BNO055
 
   test "the truth" do
     assert 1 + 1 == 2

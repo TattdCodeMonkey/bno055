@@ -11,8 +11,19 @@ ch1_process_names = %{
 
 config :bno055, [
   names: process_names,
-  processes: [
-    {:worker, [BNO055.AsoState, [[name: ch1_process_names.state]], [id: ch1_process_names.state]]},
-    {:worker, [GenEvent, [[name: process_names.eventmgr]], [id: process_names.eventmgr]]}
+  sensors: [
+    %{
+      name: "ch1",
+      i2c: "i2c-1",
+      median: %{
+        enable: false,
+        samples: 5,
+      },
+      offsets: %{
+        pitch: 0.0,
+        roll: 0.0,
+        heading: 0.0
+      }
+    }
   ]
 ]

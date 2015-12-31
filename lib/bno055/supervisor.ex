@@ -5,18 +5,20 @@ defmodule BNO055.Supervisor do
   def start_link, do: Supervisor.start_link(__MODULE__, [], [])
 
   def init(_) do
-    names = Application.get_env(:bno055, :names)
+    names = BNO055.Configuration.process_names
 
-    Application.get_env(:bno055, :processes)
-    |> Enum.map(&get_child/1)
+    get_app_children(names)
+    ++ Enum.map(BNO055.Configuration.sensors, &sensor_sup/1)
     |> supervise([strategy: :one_for_one, name: names.supervisor])
   end
 
-  defp get_child({:worker, args}) do
-    apply(Supervisor.Spec, :worker, args)
+  defp get_app_children(names) do
+    [
+      worker(GenEvent, [[name: names.eventmgr]], [id: names.eventmgr])
+    ]
   end
 
-  defp get_child({:supervisor, args}) do
-    apply(Supervisor.Spec, :supervisor, args)
+  defp sensor_sup(sensor) do
+    supervisor(BNO055.SensorSupervisor, [sensor])
   end
 end

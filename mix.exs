@@ -42,7 +42,7 @@ defmodule Bno055.Mixfile do
   defp deps(_), do: []
 
   def operating_system do
-    case Application.get_env(:hmc5883l, :operating_system) do
+    case Application.get_env(:bno055, :operating_system) do
       nil ->
         Port.open({:spawn, "uname"}, [])
 
@@ -55,7 +55,7 @@ defmodule Bno055.Mixfile do
         |> to_string
         |> String.replace("\n", "")
 
-        :application.set_env(:hmc5883l, :operating_system, result)
+        :application.set_env(:bno055, :operating_system, result)
 
         result
       os_value -> os_value
