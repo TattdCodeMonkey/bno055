@@ -49,12 +49,12 @@ defmodule BNO055.SensorSupervisor do
         ],
         [id: driver_name]
       )
-    ] ++ bus_module(sensor, bus_names)
+    ] ++ bus_modules(sensor, bus_names)
   end
 
 
 
-  defp bus_module(sensor, bus_names) do
+  defp bus_modules(sensor, bus_names) do
     case Code.ensure_loaded?(I2c) do
       true -> [
           Supervisor.Spec.worker(
