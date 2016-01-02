@@ -19,11 +19,11 @@ defmodule BNO055.SensorSupervisor do
     names = BNO055.Configuration.process_names
     event_mgr = names.eventmgr
 
-    state_name = String.to_atom(sensor.name <> "_state")
-    driver_name = String.to_atom(sensor.name <> "_driver")
+    state_name = String.to_atom("bno055_" <> sensor.name <> "_state")
+    driver_name = String.to_atom("bno055_" <> sensor.name <> "_driver")
     bus_names = %{
-      deva: String.to_atom(sensor.name <> "_busa"),
-      devb: String.to_atom(sensor.name <> "_busb")
+      deva: String.to_atom("bno055_" <> sensor.name <> "_busa"),
+      devb: String.to_atom("bno055_" <> sensor.name <> "_busb")
     }
 
     [
