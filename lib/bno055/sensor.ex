@@ -6,6 +6,8 @@ defmodule BNO055.Sensor do
   end
 
   def init(args) do
+  	BNO055.SensorState.init(args.state_name)
+
     {:ok, args}
   end
 end

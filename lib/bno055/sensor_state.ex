@@ -1,37 +1,46 @@
 defmodule BNO055.SensorState do
-  use GenServer
 
-  def start_link(args, opts \\ []) do
-    GenServer.start_link(__MODULE__, :ok, opts)
+  @euler_ms [{{:"$1", :"$2"},[{:or, {:"==", :"$1", :roll},{:or, {:"==", :"$1", :heading}, {:"==", :"$1", :pitch}}}], [{{:"$1", :"$2"}}]}]
+
+  def init(name) do
+    case :ets.info(name) do
+      :undefined -> 
+        ^name = create_table(name)
+        init_table(name)
+        :ok
+      _ -> :ok
+    end
   end
 
-  def update(pid, %{} = value) do
-    GenServer.cast(pid, {:update, value})
+  def create_table(name) do
+    :ets.new(name, [:set, :named_table, :protected])
   end
 
-  def get(pid) do
-    GenServer.call(pid, :get)
+  def init_table(name) do
+    :ets.insert(name, [
+      status: nil,
+      pitch: nil,
+      roll: nil,
+      heading: nil,
+      temp: nil,
+      quaternion: nil,
+      mag: nil,
+      gryo: nil,
+      accel: nil,
+      calibration: nil,
+      cal_gyro: nil,
+      cal_accel: nil,
+      cal_mag: nil,
+    ])
   end
 
-  def init(:ok) do
-    {:ok, Map.new}
+  def get_euler(name) do
+    :ets.select(name, @euler_ms)
+    |> Enum.into(%{})
   end
 
-  def handle_call(:get, _from, state) do
-    {:reply, state, state}
-  end
+  def update(name, value), do: true = :ets.insert(name, value)
 
-  def handle_call({:get_key, key}, _from, state) do
-    {:reply, Map.get(state, key), state}
-  end
-
-  def handle_call({:update, %{} = value}, _from, state) do
-    state = Map.merge(state, value)
-    {:reply, state, state}
-  end
-
-  def handle_cast({:update, %{} = value}, state) do
-    state = Map.merge(state, value)
-    {:noreply, state}
-  end
+  def get(name, key), do: :ets.lookup(name, key)
+  def get(name), do: :ets.match_object(name, {:"$1", :"$2"}) |> Enum.into(%{})
 end

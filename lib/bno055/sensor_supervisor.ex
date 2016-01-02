@@ -28,14 +28,6 @@ defmodule BNO055.SensorSupervisor do
 
     [
       Supervisor.Spec.worker(
-        BNO055.SensorState,
-        [
-          Map.new,
-          [name: state_name]
-        ],
-        [id: state_name]
-      ),
-      Supervisor.Spec.worker(
         BNO055.Sensor,
         [
           %{
