@@ -41,6 +41,6 @@ defmodule BNO055.SensorState do
 
   def update(name, value), do: true = :ets.insert(name, value)
 
-  def get(name, key), do: :ets.lookup(name, key)
+  def get(name, key), do: :ets.lookup(name, key) |> Enum.into(%{})
   def get(name), do: :ets.match_object(name, {:"$1", :"$2"}) |> Enum.into(%{})
 end

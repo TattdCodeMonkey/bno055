@@ -21,16 +21,14 @@ defmodule BNO055.SensorSupervisor do
 
     state_name = String.to_atom("bno055_" <> sensor.name <> "_state")
     driver_name = String.to_atom("bno055_" <> sensor.name <> "_driver")
-    bus_names = %{
-      deva: String.to_atom("bno055_" <> sensor.name <> "_busa"),
-      devb: String.to_atom("bno055_" <> sensor.name <> "_busb")
-    }
+    {bus_names, bus_mods} = load_bus_mods(sensor)
 
     [
       Supervisor.Spec.worker(
         BNO055.Sensor,
         [
-          %{
+          %BNO055.Sensor{
+            sensor_config: sensor,
             state_name: state_name,
             bus_names: bus_names,
             evt_mgr: event_mgr,
@@ -41,14 +39,17 @@ defmodule BNO055.SensorSupervisor do
         ],
         [id: driver_name]
       )
-    ] ++ bus_modules(sensor, bus_names)
+    ] ++ bus_mods
   end
 
-
-
-  defp bus_modules(sensor, bus_names) do
+  defp load_bus_mods(sensor) do
     case Code.ensure_loaded?(I2c) do
-      true -> [
+      true -> 
+        bus_names = %{
+          deva: String.to_atom("bno055_" <> sensor.name <> "_busa"),
+          devb: String.to_atom("bno055_" <> sensor.name <> "_busb")
+        }
+        mods = [
           Supervisor.Spec.worker(
             I2c,
             [sensor.i2c, 0x28, [name: bus_names.deva]],
@@ -60,7 +61,8 @@ defmodule BNO055.SensorSupervisor do
             [id: bus_names.devb]
           )
         ]
-      false -> [] #TODO: Load mock i2c for tests and non-*nix dev ?
+        {bus_names, mods}
+      false -> {%{}, []} #TODO: Load mock i2c for tests and non-*nix dev ?
     end
   end
 end

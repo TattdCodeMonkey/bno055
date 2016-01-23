@@ -30,7 +30,9 @@ defmodule Bno055.Mixfile do
   end
 
   defp deps do
-    []
+    [
+      {:exactor, "~> 2.2"}
+    ]
   end
 
   defp deps("Linux") do
