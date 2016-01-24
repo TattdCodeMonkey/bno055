@@ -52,12 +52,12 @@ defmodule BNO055.SensorSupervisor do
         mods = [
           Supervisor.Spec.worker(
             I2c,
-            [[sensor.i2c, 0x28], [name: bus_names.deva]],
+            [sensor.i2c, 0x28, [name: bus_names.deva]],
             [id: bus_names.deva]
           ),
           Supervisor.Spec.worker(
             I2c,
-            [[sensor.i2c, 0x29], [name: bus_names.devb]],
+            [sensor.i2c, 0x29, [name: bus_names.devb]],
             [id: bus_names.devb]
           )
         ]
