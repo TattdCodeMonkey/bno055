@@ -31,7 +31,8 @@ defmodule Bno055.Mixfile do
 
   defp deps do
     [
-      {:exactor, "~> 2.2"}
+      {:exactor, "~> 2.2"},
+      {:mon_handler, "~>1.0"},
     ]
   end
 

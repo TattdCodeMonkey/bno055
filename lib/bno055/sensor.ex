@@ -85,7 +85,7 @@ defmodule BNO055.Sensor do
   				roll: roll,
   				pitch: pitch
   			],
-  			state_tbl: state.state_name
+  			table_name: state.state_name
   		}
   	}
 

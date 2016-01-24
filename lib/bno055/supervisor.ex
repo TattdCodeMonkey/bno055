@@ -14,7 +14,18 @@ defmodule BNO055.Supervisor do
 
   defp get_app_children(names) do
     [
-      worker(GenEvent, [[name: names.eventmgr]], [id: names.eventmgr])
+      worker(GenEvent, [[name: names.eventmgr]], [id: names.eventmgr]),
+      worker(
+        MonHandler, 
+        [
+          MonHandler.get_config(
+            names.eventmgr,
+            BNO055.EventHandler
+          ),
+          [name: :bno055_event_handler]
+        ],
+        [id: :bno055_event_handler]
+      ),
     ]
   end
 

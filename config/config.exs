@@ -2,11 +2,7 @@ use Mix.Config
 
 process_names = %{
     supervisor: :bno055sup,
-    eventmgr: :bno055mgr
-}
-
-ch1_process_names = %{
-  state: :ch1state,
+    eventmgr: :bno055eventmgr
 }
 
 config :bno055, [
