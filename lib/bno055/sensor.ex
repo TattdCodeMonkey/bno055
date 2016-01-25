@@ -28,11 +28,17 @@ defmodule BNO055.Sensor do
   def handle_info(:initialize, state), do: {:noreply, initialize(state)}
 
   def handle_info(:timed_read, state) do
-  	state1 = state
+  	state01 = state
   	|> timed_read
   	|> read_imu
 
-  	{:noreply, state1}
+  	{:noreply, state01}
+  end
+
+  def handle_info(:timed_sys_status, state) do
+  	state01 = state |> timed_sys_status |> get_system_status
+
+  	{:noreply, state01}
   end
 
   defp initialize(state) do
@@ -62,6 +68,11 @@ defmodule BNO055.Sensor do
   	state
   end
 
+  defp timed_sys_status(state) do
+		Process.send_after(self(), :timed_sys_status, 2000)
+
+		state  	
+  end
 
   defp read_imu(state) do
   	case read_from_sensor(state, @euler_h_lsb_addr, 6) do
@@ -227,7 +238,7 @@ defmodule BNO055.Sensor do
   		_ -> <<0x0C>>
 	end
 
-	{:ok, state1} = write_to_sensor(state, @mode_addr, mode_val)
+	{:ok, state1} = write_to_sensor(state, @opr_mode_addr, mode_val)
 	:timer.sleep(30)
 
   	state1
