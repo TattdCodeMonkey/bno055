@@ -1,1 +1,2 @@
-%{"exactor": {:hex, :exactor, "2.2.0"}}
+%{"exactor": {:hex, :exactor, "2.2.0"},
+  "mon_handler": {:hex, :mon_handler, "1.0.2"}}

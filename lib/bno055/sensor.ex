@@ -1,5 +1,6 @@
 defmodule BNO055.Sensor do
   use GenServer
+  use BNO055.SensorInterface, :constants
   require Logger
 
   defstruct sensor_config: nil, state_name: nil, bus_names: %{}, bus: nil, bus_pid: nil, evt_mgr: nil, evt_mgr_pid: nil, offsets: nil, median: nil
@@ -39,6 +40,7 @@ defmodule BNO055.Sensor do
 
   	# Switch to config mode
   	state
+  	|> set_page(0)
   	|> set_mode(:config)
   	|> reset
   	|> set_power_mode(:normal)
@@ -46,6 +48,9 @@ defmodule BNO055.Sensor do
   	|> configure_axis_mapping
   	|> reset_sys_trigger
   	|> set_mode(:ndof)
+  	|> get_system_status
+  	|> get_rev_info
+  	|> get_calibration
   	|> timed_read
   end
 
@@ -57,9 +62,9 @@ defmodule BNO055.Sensor do
   	state
   end
 
-  @euler_addr 0x1A
+
   defp read_imu(state) do
-  	case read_from_sensor(state, @euler_addr, 6) do
+  	case read_from_sensor(state, @euler_h_lsb_addr, 6) do
   		{:ok, <<>>, no_data_state} -> no_data_state
   		{:ok, data, data_state} ->
   			process_imu_data(data_state, data)
@@ -77,15 +82,15 @@ defmodule BNO055.Sensor do
   	roll = roll_rdg / 16.0
   	pitch = pitch_rdg / 16.0
 
-  	msg = {:reading, 
+  	msg = {:euler_reading, 
   		%{
   			sensor: state.sensor_config.name,
-  			readings: [
+  			table_name: state.state_name,
+  			data: [
   				heading: heading,
   				roll: roll,
   				pitch: pitch
   			],
-  			table_name: state.state_name
   		}
   	}
 
@@ -94,7 +99,114 @@ defmodule BNO055.Sensor do
   	state
   end
 
-  @mode_addr 0x3D
+  defp process_system_status(state, {sys, st, err}) do
+  	sys_status = case sys do
+  		0 -> "Idle"
+  		1 -> "System Error"
+  		2 -> "Initializing Peripherals"
+  		3 -> "System Iniitalization"
+  		4 -> "Executing Self-Test"
+  		5 -> "Sensor fusion algorithm running"
+  		6 -> "System running without fusion algorithms"
+  		_ -> "Unknown status: #{sys}"
+  	end
+
+  	<<
+  	  _ :: size(4),
+  	  mcu_st :: size(1),
+  	  gyro_st :: size(1),
+  	  mag_st :: size(1),
+  	  acc_st :: size(1)
+  	>> = st
+
+  	self_test = %{
+  		mcu: (if mcu_st == 1, do: "Pass", else: "Fail"),
+  		gyro: (if gyro_st == 1, do: "Pass", else: "Fail"),
+  		mag: (if mag_st == 1, do: "Pass", else: "Fail"),
+  		accel: (if acc_st == 1, do: "Pass", else: "Fail")
+  	}
+
+  	sys_error = case err do
+		0x00 -> "No error"
+		0x01 -> "Peripheral initialization error"
+		0x02 -> "System initialization error"
+		0x03 -> "Self test result failed"
+		0x04 -> "Register map value out of range"
+		0x05 -> "Register map address out of range"
+		0x06 -> "Register map write error"
+		0x07 -> "BNO low power mode not available for selected operat ion mode"
+		0x08 -> "Accelerometer power mode not available"
+		0x09 -> "Fusion algorithm configuration error"
+		0x0A -> "Sensor configuration error"
+		_ -> "Unknown system error value: #{err}"
+  	end
+
+  	msg = {:system_status, 
+  		%{
+  			sensor: state.sensor_config.name,
+  			table_name: state.state_name,
+  			data: [
+  				system_status: sys_status,
+  				system_error: sys_error,
+  				self_test: self_test
+  			]	
+  		}
+  	}
+
+  	raise_event(state, msg)
+
+  	state
+  end
+
+  defp set_page(state, page \\ 0) do
+  	{:ok, state01} = write_to_sensor(state, @page_id_addr, <<page>>)
+  	:timer.sleep(10)
+
+  	state01
+  end
+
+
+  defp get_system_status(state) do
+  	state01 = set_page(state, 0)
+  	{:ok, sys_stat_data, state02} = read_from_sensor(state01, @sys_stat_addr, 1)
+  	{:ok, self_test_data, state03} = read_from_sensor(state02, @selftest_result_addr, 1)
+  	{:ok, sys_error_data, state04} = read_from_sensor(state03, @sys_err_addr, 1)
+
+  	process_system_status(state04, {sys_stat_data, self_test_data, sys_error_data})
+  end
+
+  defp get_rev_info(state) do
+		{:ok, <<accel_rev>>, state01} = read_from_sensor(state, @accel_rev_id_addr, 1)
+		{:ok, <<mag_rev>>, state02} = read_from_sensor(state01, @mag_rev_id_addr, 1)
+		{:ok, <<gyro_rev>>, state03} = read_from_sensor(state02, @gyro_rev_id_addr, 1)
+		{:ok, <<bl_rev>>, state04} = read_from_sensor(state03, @bl_rev_id_addr, 1)
+		{:ok, <<sw_rev :: size(16)>>, state05} = read_from_sensor(state04, @sw_rev_id_lsb_addr, 2)
+
+		raise_event(state,
+			{:revision_info, 
+				%{
+					sensor: state.sensor_config.name,
+  				table_name: state.state_name,
+  				data: [
+  					revision_info: %{
+  						accel: accel_rev,
+  						mag: mag_rev,
+  						gyro: gyro_rev,
+  						bl: bl_rev,
+  						sw: sw_rev
+  					}
+  				]
+				}
+			}
+		)
+
+  	state05
+  end
+
+  defp get_calibration(state) do
+  	state
+  end
+
   defp set_mode(state, mode) do
 	Logger.debug("BNO055 setting sensor mode to #{inspect mode}")
 
@@ -121,10 +233,10 @@ defmodule BNO055.Sensor do
   	state1
   end
 
-  @sys_trigger_addr 0x3F
   defp reset(state) do
   	Logger.debug("BNO055 resetting sensor")
   	{:ok, state1} = write_to_sensor(state, @sys_trigger_addr, <<0x20>>)
+  	:timer.sleep(650)
 
   	Logger.debug("BNO055 waiting for sensor address")
   	{:ok, state2} = wait_for_addr(state1)
@@ -133,8 +245,6 @@ defmodule BNO055.Sensor do
   	state2
   end
 
-  @pwr_mode_addr 0x3E
-  @page_id_addr 0x07
   defp set_power_mode(state, mode) do
   	Logger.debug("BNO055 setting sensor power mode to #{inspect mode}")
 
@@ -168,8 +278,7 @@ defmodule BNO055.Sensor do
   	state1
   end
 
-  @chip_id_addr 0x00
-  @bno055_id 0xA0
+  
   defp wait_for_addr(state) do
   	case read_from_sensor(state, @chip_id_addr, 1) do
   		{:ok, <<>>, no_data_state} -> {:ok, no_data_state}
