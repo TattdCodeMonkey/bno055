@@ -3,7 +3,9 @@ defmodule BNO055.Sensor do
   use BNO055.SensorInterface, :constants
   require Logger
 
-  defstruct sensor_config: nil, state_name: nil, bus_names: %{}, bus: nil, bus_pid: nil, evt_mgr: nil, evt_mgr_pid: nil, offsets: nil, median: nil
+  @max_consecutive_failed_writes 20
+
+  defstruct sensor_config: nil, state_name: nil, bus_name: nil, bus_pid: nil, evt_mgr: nil, evt_mgr_pid: nil, offsets: nil, median: nil, write_fails: 0
   def start_link(args, opts \\ []) do
     res = {:ok, pid} = GenServer.start_link(__MODULE__, args, opts)
 
@@ -14,15 +16,8 @@ defmodule BNO055.Sensor do
 
   def init(args) do
   	BNO055.SensorState.init(args.state_name)
-  	
-  	state = case args.bus_names do
-  		%{} -> args
-  		%{deva: busa, devb: _ } -> 
-  			%{args| bus: busa}
-		_ -> args
-  	end
 
-    {:ok, state}
+    {:ok, args}
   end
 
   def handle_info(:initialize, state), do: {:noreply, initialize(state)}
@@ -44,8 +39,10 @@ defmodule BNO055.Sensor do
   defp initialize(state) do
   	Logger.debug "Initializing #{state.sensor_config.name} BNO055 Sensor"
 
+    if state.bus_name == nil, do: Logger.warn "No bus name, faux sensor used"
   	# Switch to config mode
   	state
+    |> init_wait_for_addr
   	|> set_page(0)
   	|> set_mode(:config)
   	|> reset
@@ -57,13 +54,15 @@ defmodule BNO055.Sensor do
   	|> get_system_status
   	|> get_rev_info
   	|> get_calibration
-  	|> timed_read
+  	|> timed_read(10000)
   end
 
   defp read_interval, do: 50
 
-  defp timed_read(state) do 
-  	Process.send_after(self(),:timed_read, read_interval)
+  defp timed_read(state), do: timed_read(state, read_interval)
+
+  defp timed_read(state, interval) do
+  	Process.send_after(self(),:timed_read, interval)
 
   	state
   end
@@ -71,7 +70,7 @@ defmodule BNO055.Sensor do
   defp timed_sys_status(state) do
 		Process.send_after(self(), :timed_sys_status, 2000)
 
-		state  	
+		state
   end
 
   defp read_imu(state) do
@@ -84,24 +83,26 @@ defmodule BNO055.Sensor do
 
   defp process_imu_data(%__MODULE__{} = state, data) do
   	<<
-  	  heading_rdg :: size(16)-signed,
-  	  roll_rdg :: size(16)-signed,
-  	  pitch_rdg :: size(16)-signed
+  	  heading_rdg :: size(16)-signed-little,
+  	  roll_rdg :: size(16)-signed-little,
+  	  pitch_rdg :: size(16)-signed-little
   	>> = data
 
   	heading = heading_rdg / 16.0
   	roll = roll_rdg / 16.0
   	pitch = pitch_rdg / 16.0
 
-  	msg = {:euler_reading, 
+    data = [
+      heading: heading,
+      roll: roll,
+      pitch: pitch
+    ]
+
+  	msg = {:euler_reading,
   		%{
   			sensor: state.sensor_config.name,
   			table_name: state.state_name,
-  			data: [
-  				heading: heading,
-  				roll: roll,
-  				pitch: pitch
-  			],
+  			data: data,
   		}
   	}
 
@@ -110,63 +111,67 @@ defmodule BNO055.Sensor do
   	state
   end
 
+  defp process_system_status(state, {<<>>, <<>>, <<>>}), do: state
+  defp process_system_status(state, {<<>>, _, _}), do: state
+  defp process_system_status(state, {_, <<>>, _}), do: state
+  defp process_system_status(state, {_, _,<<>>}), do: state
   defp process_system_status(state, {sys, st, err}) do
-  	sys_status = case sys do
-  		0 -> "Idle"
-  		1 -> "System Error"
-  		2 -> "Initializing Peripherals"
-  		3 -> "System Iniitalization"
-  		4 -> "Executing Self-Test"
-  		5 -> "Sensor fusion algorithm running"
-  		6 -> "System running without fusion algorithms"
-  		_ -> "Unknown status: #{sys}"
-  	end
+    sys_status = case sys do
+      0 -> "Idle"
+      1 -> "System Error"
+      2 -> "Initializing Peripherals"
+      3 -> "System Iniitalization"
+      4 -> "Executing Self-Test"
+      5 -> "Sensor fusion algorithm running"
+      6 -> "System running without fusion algorithms"
+      _ -> "Unknown status: #{sys}"
+    end
 
-  	<<
-  	  _ :: size(4),
-  	  mcu_st :: size(1),
-  	  gyro_st :: size(1),
-  	  mag_st :: size(1),
-  	  acc_st :: size(1)
-  	>> = st
+    <<
+      _ :: size(4),
+      mcu_st :: size(1),
+      gyro_st :: size(1),
+      mag_st :: size(1),
+      acc_st :: size(1)
+    >> = st
 
-  	self_test = %{
-  		mcu: (if mcu_st == 1, do: "Pass", else: "Fail"),
-  		gyro: (if gyro_st == 1, do: "Pass", else: "Fail"),
-  		mag: (if mag_st == 1, do: "Pass", else: "Fail"),
-  		accel: (if acc_st == 1, do: "Pass", else: "Fail")
-  	}
+    self_test = %{
+      mcu: (if mcu_st == 1, do: "Pass", else: "Fail"),
+      gyro: (if gyro_st == 1, do: "Pass", else: "Fail"),
+      mag: (if mag_st == 1, do: "Pass", else: "Fail"),
+      accel: (if acc_st == 1, do: "Pass", else: "Fail")
+    }
 
-  	sys_error = case err do
-		0x00 -> "No error"
-		0x01 -> "Peripheral initialization error"
-		0x02 -> "System initialization error"
-		0x03 -> "Self test result failed"
-		0x04 -> "Register map value out of range"
-		0x05 -> "Register map address out of range"
-		0x06 -> "Register map write error"
-		0x07 -> "BNO low power mode not available for selected operat ion mode"
-		0x08 -> "Accelerometer power mode not available"
-		0x09 -> "Fusion algorithm configuration error"
-		0x0A -> "Sensor configuration error"
-		_ -> "Unknown system error value: #{err}"
-  	end
+    sys_error = case err do
+      0x00 -> "No error"
+      0x01 -> "Peripheral initialization error"
+      0x02 -> "System initialization error"
+      0x03 -> "Self test result failed"
+      0x04 -> "Register map value out of range"
+      0x05 -> "Register map address out of range"
+      0x06 -> "Register map write error"
+      0x07 -> "BNO low power mode not available for selected operat ion mode"
+      0x08 -> "Accelerometer power mode not available"
+      0x09 -> "Fusion algorithm configuration error"
+      0x0A -> "Sensor configuration error"
+      _ -> "Unknown system error value: #{err}"
+    end
 
-  	msg = {:system_status, 
-  		%{
-  			sensor: state.sensor_config.name,
-  			table_name: state.state_name,
-  			data: [
-  				system_status: sys_status,
-  				system_error: sys_error,
-  				self_test: self_test
-  			]	
-  		}
-  	}
+    msg = {:system_status,
+      %{
+        sensor: state.sensor_config.name,
+        table_name: state.state_name,
+        data: [
+          system_status: sys_status,
+          system_error: sys_error,
+          self_test: self_test
+        ]
+      }
+    }
 
-  	raise_event(state, msg)
+    raise_event(state, msg)
 
-  	state
+    state
   end
 
   defp set_page(state, page \\ 0) do
@@ -186,6 +191,7 @@ defmodule BNO055.Sensor do
   	process_system_status(state04, {sys_stat_data, self_test_data, sys_error_data})
   end
 
+  defp get_rev_info(%{bus_name: nil} = state), do: state
   defp get_rev_info(state) do
 		{:ok, <<accel_rev>>, state01} = read_from_sensor(state, @accel_rev_id_addr, 1)
 		{:ok, <<mag_rev>>, state02} = read_from_sensor(state01, @mag_rev_id_addr, 1)
@@ -194,7 +200,7 @@ defmodule BNO055.Sensor do
 		{:ok, <<sw_rev :: size(16)>>, state05} = read_from_sensor(state04, @sw_rev_id_lsb_addr, 2)
 
 		raise_event(state,
-			{:revision_info, 
+			{:revision_info,
 				%{
 					sensor: state.sensor_config.name,
   				table_name: state.state_name,
@@ -215,6 +221,8 @@ defmodule BNO055.Sensor do
   end
 
   defp get_calibration(state) do
+
+
   	state
   end
 
@@ -289,56 +297,83 @@ defmodule BNO055.Sensor do
   	state1
   end
 
-  
-  defp wait_for_addr(state) do
+  defp init_wait_for_addr(state) do
+    Logger.debug "Waiting for address to start initializing sensor"
+
+    {:ok, state01} = wait_for_addr(state)
+
+    state01
+  end
+
+  defp wait_for_addr(_, 1000), do: {:error, :timeout_waiting_for_address}
+  defp wait_for_addr(state, cnt \\ 0) do
   	case read_from_sensor(state, @chip_id_addr, 1) do
   		{:ok, <<>>, no_data_state} -> {:ok, no_data_state}
   		{:ok, data, data_state} ->
   			case data do
   				<<@bno055_id>> -> {:ok, data_state}
   				_ ->
-  					:timer.sleep(10) 
-  					wait_for_addr(data_state)
+  					:timer.sleep(10)
+  					wait_for_addr(data_state, cnt + 1)
   			end
   		{:error, reason, error_state} -> {:error, reason, error_state}
   	end
   end
 
-  defp write_to_sensor(%{bus: nil} = state, _addr, _data), do: {:ok, state}
-  defp write_to_sensor(%{bus: name, bus_pid: nil} = state, addr, data) do
+  defp write_to_sensor(%{bus_name: nil} = state, _addr, _data), do: {:ok, state}
+  defp write_to_sensor(%{bus_name: name, bus_pid: nil} = state, addr, data) do
   	case Process.whereis(name) do
   		nil -> {:ok, <<>>, state}
-  		pid -> 
+  		pid ->
   			bus_state = %{state| bus_pid: pid}
 			write_to_sensor(bus_state, addr, data)
   	end
   end
   defp write_to_sensor(state, addr, data) do
-  	:ok = GenServer.call(state.bus_pid, {:write, <<addr>> <> data})
-
-  	{:ok, state}
+    case GenServer.call(state.bus_pid, {:write, <<addr>> <> data}) do
+      :ok ->
+        if state.write_fails != 0 do
+          {:ok, %{state| write_fails: 0}}
+        else
+          {:ok, state}
+        end
+      {:error, :i2c_write_failed} ->
+        write_fails = state.write_fails + 1
+        if write_fails > @max_consecutive_failed_writes do
+          {:error, :max_consecutive_failed_writes_exceeded}
+        else
+          {:ok, %{state| write_fails: write_fails}}
+        end
+    end
   end
 
-  defp read_from_sensor(%{bus: nil} = state, _addr, _len), do: {:ok, <<>>, state}
-  defp read_from_sensor(%{bus: name, bus_pid: nil} = state, addr, len) do
+  defp read_from_sensor(%{bus_name: nil} = state, _addr, _len), do: {:ok, <<>>, state}
+  defp read_from_sensor(%{bus_name: name, bus_pid: nil} = state, addr, len) do
   	case Process.whereis(name) do
   		nil -> {:ok, <<>>, state}
-  		pid -> 
+  		pid ->
   			bus_state = %{state| bus_pid: pid}
 			read_from_sensor(bus_state, addr, len)
   	end
   end
   defp read_from_sensor(state, addr, len) do
-  	data = GenServer.call(state.bus_pid, {:wrrd, <<addr>>, len})
-
-  	{:ok, data, state}
+    case GenServer.call(state.bus_pid, {:wrrd, <<addr>>, len}) do
+      {:error, :i2c_wrrd_failed} ->
+        write_fails = state.write_fails + 1
+        if write_fails > @max_consecutive_failed_writes do
+          {:error, :max_consecutive_failed_writes_exceeded}
+        else
+          {:ok, <<>>,  %{state| write_fails: write_fails}}
+        end
+      data -> {:ok, data, state}
+    end
   end
 
   defp raise_event(%{evt_mgr: nil} = state, _msg), do: {:ok, state}
   defp raise_event(%{evt_mgr_pid: nil} = state, msg) do
   	case Process.whereis(state.evt_mgr) do
   		nil -> {:ok, state}
-  		pid -> 
+  		pid ->
   			pid_state = %{state| evt_mgr_pid: pid}
   			raise_event(pid_state, msg)
   	end
@@ -348,5 +383,5 @@ defmodule BNO055.Sensor do
 
   	{:ok, state}
   end
-  	
+
 end
