@@ -5,7 +5,11 @@ defmodule BNO055.Sensor do
 
   @max_consecutive_failed_writes 20
 
-  defstruct sensor_config: nil, state_name: nil, bus_name: nil, bus_pid: nil, evt_mgr: nil, evt_mgr_pid: nil, offsets: nil, median: nil, write_fails: 0
+  defmodule State do
+    defstruct sensor_config: nil, state_name: nil, bus_name: nil, bus_pid: nil, write_fails: 0
+  end
+
+
   def start_link(args, opts \\ []) do
     res = {:ok, pid} = GenServer.start_link(__MODULE__, args, opts)
 
@@ -14,7 +18,7 @@ defmodule BNO055.Sensor do
     res
   end
 
-  def init(args) do
+  def init(%State{} = args) do
   	BNO055.SensorState.init(args.state_name)
 
     {:ok, args}
@@ -81,7 +85,7 @@ defmodule BNO055.Sensor do
   	end
   end
 
-  defp process_imu_data(%__MODULE__{} = state, data) do
+  defp process_imu_data(%State{} = state, data) do
   	<<
   	  heading_rdg :: size(16)-signed-little,
   	  roll_rdg :: size(16)-signed-little,
@@ -369,19 +373,22 @@ defmodule BNO055.Sensor do
     end
   end
 
-  defp raise_event(%{evt_mgr: nil} = state, _msg), do: {:ok, state}
-  defp raise_event(%{evt_mgr_pid: nil} = state, msg) do
-  	case Process.whereis(state.evt_mgr) do
-  		nil -> {:ok, state}
-  		pid ->
-  			pid_state = %{state| evt_mgr_pid: pid}
-  			raise_event(pid_state, msg)
-  	end
+  defp raise_event(%{sensor_config: %{gproc: nil}} = state, msg) do
+    Logger.debug("no event topic defined, msg: #{inspect msg} not sent")
+
+    {:ok, state}
   end
-  defp raise_event(%{evt_mgr_pid: epid} = state, msg) do
-  	:ok = GenEvent.notify(epid, msg)
+  defp raise_event(%{sensor_config: %{gproc: topic}} = state, msg) do
+  	gproc_send(topic, msg)
+  end
+  defp raise_event(state, msg) do
+  	Logger.debug("no event topic defined, msg: #{inspect msg} not sent")
 
   	{:ok, state}
+  end
+
+  defp gproc_send(topic, msg) do
+    :gproc.send({:p, :l, topic}, {topic, self(), msg})
   end
 
 end

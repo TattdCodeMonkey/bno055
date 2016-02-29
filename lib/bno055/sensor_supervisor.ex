@@ -27,13 +27,10 @@ defmodule BNO055.SensorSupervisor do
       Supervisor.Spec.worker(
         BNO055.Sensor,
         [
-          %BNO055.Sensor{
+          %BNO055.Sensor.State{
             sensor_config: sensor,
             state_name: state_name,
             bus_name: bus_name,
-            evt_mgr: event_mgr,
-            offsets: Map.get(sensor, :offsets, BNO055.Configuration.default_offsets),
-            median: Map.get(sensor, :median, BNO055.Configuration.default_median)
           },
           [name: driver_name]
         ],

@@ -1,8 +1,0 @@
-use Bake.Config
-
-platform :nerves
-default_target :bbb
-
-target :bbb,
-  recipe: {"nerves/bbb", "~> 0.1"}
-

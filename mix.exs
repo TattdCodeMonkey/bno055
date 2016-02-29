@@ -4,7 +4,7 @@ defmodule Bno055.Mixfile do
   def project do
     [app: :bno055,
      version: "0.0.1",
-     elixir: "~> 1.1",
+     elixir: "~> 1.2",
      build_embedded: Mix.env == :prod,
      start_permanent: Mix.env == :prod,
      deps: deps,
@@ -16,9 +16,7 @@ defmodule Bno055.Mixfile do
     [
       applications: [
         :logger,
-        :nerves,
-        :mon_handler,
-        :elixir_ale,
+        :gproc
       ],
       registered: [:bno055],
       mod: {BNO055, []}
@@ -36,9 +34,9 @@ defmodule Bno055.Mixfile do
 
   defp deps do
     [
+      {:gproc, "~>0.5"},
       {:mon_handler, "~>1.0"},
-      {:elixir_ale, "~>0.4"},
-      {:nerves, github: "nerves-project/nerves"},
+      {:elixir_ale, "~>0.4", only: [:dev, :prod]},
     ]
   end
 end
