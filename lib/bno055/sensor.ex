@@ -102,13 +102,9 @@ defmodule BNO055.Sensor do
       pitch: pitch
     ]
 
-  	msg = {:euler_reading,
-  		%{
-  			sensor: state.sensor_config.name,
-  			table_name: state.state_name,
-  			data: data,
-  		}
-  	}
+  	msg = {:euler_reading, data}
+
+    BNO055.SensorState.update(state.state_name, data)
 
   	raise_event(state, msg)
 
