@@ -17,7 +17,6 @@ defmodule BNO055.SensorSupervisor do
 
   defp children(sensor) do
     names = BNO055.Configuration.process_names
-    event_mgr = names.eventmgr
 
     state_name = String.to_atom("bno055_" <> sensor.name <> "_state")
     driver_name = String.to_atom("bno055_" <> sensor.name <> "_driver")
