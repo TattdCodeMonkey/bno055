@@ -41,8 +41,7 @@ defmodule Bno055.Mixfile do
 
   defp deps do
     [
-      {:gproc, "~>0.5"},
-      {:mon_handler, "~>1.0"}
+      {:gproc, "~>0.5"}
     ] ++ add_deps(Mix.env)
   end
 
