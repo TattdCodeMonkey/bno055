@@ -174,7 +174,7 @@ defmodule BNO055.Sensor do
     state
   end
 
-  defp set_page(state, page \\ 0) do
+  defp set_page(state, page) do
   	{:ok, state01} = write_to_sensor(state, @page_id_addr, <<page>>)
   	:timer.sleep(10)
 
@@ -305,8 +305,9 @@ defmodule BNO055.Sensor do
     state01
   end
 
+  defp wait_for_addr(state), do: wait_for_addr(state, 0)
   defp wait_for_addr(_, 1000), do: {:error, :timeout_waiting_for_address}
-  defp wait_for_addr(state, cnt \\ 0) do
+  defp wait_for_addr(state, cnt) do
   	case read_from_sensor(state, @chip_id_addr, 1) do
   		{:ok, <<>>, no_data_state} -> {:ok, no_data_state}
   		{:ok, data, data_state} ->
@@ -369,18 +370,18 @@ defmodule BNO055.Sensor do
     end
   end
 
-  defp raise_event(%{sensor_config: %{gproc: nil}} = state, msg) do
+  defp raise_event(%{sensor_config: %{gproc: nil}}, msg) do
     Logger.debug("no event topic defined, msg: #{inspect msg} not sent")
 
-    {:ok, state}
+    :ok
   end
-  defp raise_event(%{sensor_config: %{gproc: topic}} = state, msg) do
+  defp raise_event(%{sensor_config: %{gproc: topic}}, msg) do
   	gproc_send(topic, msg)
   end
-  defp raise_event(state, msg) do
+  defp raise_event(_, msg) do
   	Logger.debug("no event topic defined, msg: #{inspect msg} not sent")
 
-  	{:ok, state}
+  	:ok
   end
 
   defp gproc_send(topic, msg) do

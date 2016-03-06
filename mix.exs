@@ -4,11 +4,12 @@ defmodule Bno055.Mixfile do
   def project do
     [app: :bno055,
      version: "0.0.1",
-     elixir: "~> 1.2",
+     elixir: ">= 1.0.0 and < 2.0.0",
      build_embedded: Mix.env == :prod,
      start_permanent: Mix.env == :prod,
      deps: deps,
-     package: package()
+     description: description,
+     package: package,
    ]
   end
 
@@ -23,20 +24,28 @@ defmodule Bno055.Mixfile do
     ]
   end
 
+  def description, do: """
+    OTP application for reading the BNO-055 absolute orientation sensor.
+
+    Euler angles are read at 20hz and published to a configured local `gproc` property.
+  """
+
   def package do
     [
       files: ["lib", "mix.exs", "README.md", "LICENSE"],
       maintainers: ["Rodney Norris"],
       licenses: ["MIT"],
-      links: []
+      links:  %{"GitHub" => "https://github.com/TattdCodeMonkey/bno055"}
     ]
   end
 
   defp deps do
     [
       {:gproc, "~>0.5"},
-      {:mon_handler, "~>1.0"},
-      {:elixir_ale, "~>0.4", only: [:dev, :prod]},
-    ]
+      {:mon_handler, "~>1.0"}
+    ] ++ add_deps(Mix.env)
   end
+
+  defp add_deps(:test), do: []
+  defp add_deps(_), do: [{:elixir_ale, "~>0.4", only: [:dev, :prod]}]
 end

@@ -1,12 +1,9 @@
 use Mix.Config
 
-process_names = %{
-    supervisor: :bno055sup,
-    eventmgr: :bno055eventmgr
-}
-
 config :bno055, [
-  names: process_names,
+  names: %{
+      supervisor: :bno055sup
+  },
   sensors: [
     %{
       name: "ch1",
