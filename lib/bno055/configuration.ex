@@ -2,8 +2,8 @@ defmodule BNO055.Configuration do
   def process_names, do: Application.get_env(:bno055, :names, %{supervisor: :bno055sup})
   def sensors, do: Application.get_env(:bno055, :sensors)
 
-  def validate_sensors(nil), do: {:error, "No sensors defined in config"}
-  def validate_sensors([]), do: {:error, "At least one sensor should be defined in the config"}
+  def validate_sensors(nil), do: {:error, ["No sensors defined in config"]}
+  def validate_sensors([]), do: {:error, ["At least one sensor should be defined in the config"]}
   def validate_sensors(cfg) when is_list(cfg) do
     cfg
     |> Enum.reduce([], &validate_sensor/2)
