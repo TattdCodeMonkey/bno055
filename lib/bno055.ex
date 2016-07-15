@@ -21,9 +21,6 @@ defmodule BNO055 do
 
     opts = [strategy: :one_for_one, name: __MODULE__]
 
-    case Mix.env do
-      :test -> Supervisor.start_link([], opts)
-      _ -> Supervisor.start_link(children, opts)
-    end
+    Supervisor.start_link(children, opts)
   end
 end
