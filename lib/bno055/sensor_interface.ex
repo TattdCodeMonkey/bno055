@@ -1,11 +1,9 @@
 defmodule BNO055.SensorInterface do
-
-  def constants do
+  defmacro __using__(_) do
     quote do
-
-    	@bno055_id								0xA0
-	  	@chip_id_addr 						0x00
-	  	# Page id register definition
+      @bno055_id								0xA0
+      @chip_id_addr 						0x00
+      #  id register definition
       @page_id_addr             0x07
       # Page 0 register definition start
       @chip_id_addr             0x00
@@ -15,7 +13,7 @@ defmodule BNO055.SensorInterface do
       @sw_rev_id_lsb_addr       0x04
       @sw_rev_id_msb_addr       0x05
       @bl_rev_id_addr           0x06
-			# Accel data register 
+      # Accel data register
       @accel_data_x_lsb_addr    0x08
       @accel_data_x_msb_addr    0x09
       @accel_data_y_lsb_addr    0x0a
@@ -23,7 +21,7 @@ defmodule BNO055.SensorInterface do
       @accel_data_z_lsb_addr    0x0c
       @accel_data_z_msb_addr    0x0d
 
-      # Mag data register 
+      # Mag data register
       @mag_data_x_lsb_addr      0x0e
       @mag_data_x_msb_addr      0x0f
       @mag_data_y_lsb_addr      0x10
@@ -31,7 +29,7 @@ defmodule BNO055.SensorInterface do
       @mag_data_z_lsb_addr      0x12
       @mag_data_z_msb_addr      0x13
 
-      # Gyro data registers 
+      # Gyro data registers
       @gyro_data_x_lsb_addr     0x14
       @gyro_data_x_msb_addr     0x15
       @gyro_data_y_lsb_addr     0x16
@@ -39,7 +37,7 @@ defmodule BNO055.SensorInterface do
       @gyro_data_z_lsb_addr     0x18
       @gyro_data_z_msb_addr     0x19
 
-      # Euler data registers 
+      # Euler data registers
       @euler_h_lsb_addr         0x1a
       @euler_h_msb_addr         0x1b
       @euler_r_lsb_addr         0x1c
@@ -47,7 +45,7 @@ defmodule BNO055.SensorInterface do
       @euler_p_lsb_addr         0x1e
       @euler_p_msb_addr         0x1f
 
-      # Quaternion data registers 
+      # Quaternion data registers
       @quaternion_data_w_lsb_addr   0x20
       @quaternion_data_w_msb_addr   0x21
       @quaternion_data_x_lsb_addr   0x22
@@ -57,7 +55,7 @@ defmodule BNO055.SensorInterface do
       @quaternion_data_z_lsb_addr   0x26
       @quaternion_data_z_msb_addr   0x27
 
-      # Linear acceleration data registers 
+      # Linear acceleration data registers
       @linear_accel_data_x_lsb_addr 0x28
       @linear_accel_data_x_msb_addr 0x29
       @linear_accel_data_y_lsb_addr 0x2a
@@ -65,7 +63,7 @@ defmodule BNO055.SensorInterface do
       @linear_accel_data_z_lsb_addr 0x2c
       @linear_accel_data_z_msb_addr 0x2d
 
-      # Gravity data registers 
+      # Gravity data registers
       @gravity_data_x_lsb_addr      0x2e
       @gravity_data_x_msb_addr      0x2f
       @gravity_data_y_lsb_addr      0x30
@@ -73,10 +71,10 @@ defmodule BNO055.SensorInterface do
       @gravity_data_z_lsb_addr      0x32
       @gravity_data_z_msb_addr      0x33
 
-      # Temperature data register 
+      # Temperature data register
       @temp_addr                    0x34
 
-      # Status registers 
+      # Status registers
       @calib_stat_addr              0x35
       @selftest_result_addr         0x36
       @intr_stat_addr               0x37
@@ -84,22 +82,22 @@ defmodule BNO055.SensorInterface do
       @sys_stat_addr                0x39
       @sys_err_addr                 0x3A
 
-      # Unit selection register 
+      # Unit selection register
       @unit_sel_addr                0x3b
       @data_select_addr             0x3c
 
-      # Mode registers 
+      # Mode registers
       @opr_mode_addr                0x3d
       @pwr_mode_addr                0x3e
 
       @sys_trigger_addr             0x3f
       @temp_source_addr             0x40
 
-      # Axis remap registers 
+      # Axis remap registers
       @axis_map_config_addr         0x41
       @axis_map_sign_addr           0x42
 
-      # SIC registers 
+      # SIC registers
       @sic_matrix_0_lsb_addr        0x43
       @sic_matrix_0_msb_addr        0x44
       @sic_matrix_1_lsb_addr        0x45
@@ -119,7 +117,7 @@ defmodule BNO055.SensorInterface do
       @sic_matrix_8_lsb_addr        0x53
       @sic_matrix_8_msb_addr        0x54
 
-      # Accelerometer Offset registers 
+      # Accelerometer Offset registers
       @accel_offset_x_lsb_addr      0x55
       @accel_offset_x_msb_addr      0x56
       @accel_offset_y_lsb_addr      0x57
@@ -127,7 +125,7 @@ defmodule BNO055.SensorInterface do
       @accel_offset_z_lsb_addr      0x59
       @accel_offset_z_msb_addr      0x5a
 
-      # magnetometer offset registers 
+      # magnetometer offset registers
       @mag_offset_x_lsb_addr        0x5b
       @mag_offset_x_msb_addr        0x5c
       @mag_offset_y_lsb_addr        0x5d
@@ -143,15 +141,11 @@ defmodule BNO055.SensorInterface do
       @gyro_offset_z_lsb_addr       0x65
       @gyro_offset_z_msb_addr       0x66
 
-      # radius registers 
+      # radius registers
       @accel_radius_lsb_addr        0x67
       @accel_radius_msb_addr        0x68
       @mag_radius_lsb_addr          0x69
       @mag_radius_msb_addr          0x6A
     end
-  end
-
-  defmacro __using__(which) when is_atom(which) do
-    apply(__MODULE__, which, [])
   end
 end

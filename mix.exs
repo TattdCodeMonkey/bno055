@@ -16,18 +16,13 @@ defmodule Bno055.Mixfile do
   def application do
     [
       applications: [
-        :logger,
-        :gproc
-      ],
-      registered: [:bno055],
-      mod: {BNO055, []}
+        :logger
+      ]
     ]
   end
 
   def description, do: """
-    OTP application for reading the BNO-055 absolute orientation sensor.
 
-    Euler angles are read at 20hz and published to a configured local `gproc` property.
   """
 
   def package do
@@ -40,11 +35,6 @@ defmodule Bno055.Mixfile do
   end
 
   defp deps do
-    [
-      {:gproc, "~>0.5"}
-    ] ++ add_deps(Mix.env)
+    []
   end
-
-  defp add_deps(:test), do: []
-  defp add_deps(_), do: [{:elixir_ale, "~>0.4", only: [:dev, :prod]}]
 end

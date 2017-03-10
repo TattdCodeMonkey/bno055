@@ -1,6 +1,6 @@
 defmodule BNO055.Sensor do
   use GenServer
-  use BNO055.SensorInterface, :constants
+  use BNO055.SensorInterface
   require Logger
 
   @max_consecutive_failed_writes 20
