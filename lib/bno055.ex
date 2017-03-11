@@ -1,6 +1,11 @@
 defmodule BNO055 do
   use BNO055.SensorInterface
+
   @moduledoc """
+  This module is used to create commands for interacting with a Bosch BNO055 sensor. This
+  module is intended to be an unopinionated collection of functions to created data for
+  communicating with the sensor, but does not handle actual communication.
+
   Set functions return tuple with address and data to be written to that address
   ```elixir
   iex> BNO055.set_mode(:config)
@@ -11,9 +16,8 @@ defmodule BNO055 do
   ```elixir
   iex> BNO.get_chip_address
   {0x00, 1}
-
-  Decode functions take the data returned from get functions and returns formatted results
   ```
+  Decode functions take the data returned from get functions and returns formatted results
   """
 
   @type register_address :: 0..0x6A
@@ -253,54 +257,105 @@ defmodule BNO055 do
     {@axis_map_config_addr, data}
   end
 
+  @doc """
+  Command to get the sensor chip address
+  """
   @spec get_chip_address() :: get_result
   def get_chip_address, do:  {@chip_id_addr, 1}
 
+  @doc """
+  Command to get system status
+  """
   @spec get_system_status() :: get_result
   def get_system_status, do: {@sys_stat_addr, 1}
 
+  @doc """
+  Command to get last sensor self test result
+  """
   @spec get_self_test_result() :: get_result
   def get_self_test_result, do: {@selftest_result_addr, 1}
 
+  @doc """
+  Command to get system error data
+  """
   @spec get_system_error_data() :: get_result
   def get_system_error_data, do: {@sys_err_addr, 1}
 
+  @doc """
+  Command to get sensor revision infomation
+  """
   @spec get_revision_info() :: get_result
   def get_revision_info, do: {@accel_rev_id_addr, 6}
 
+  @doc """
+  Command to get calibration status
+  """
   @spec get_calibration_status() :: get_result
   def get_calibration_status, do: {@calib_stat_addr, 1}
 
+  @doc """
+  Command to get sensor calibration data
+  """
   @spec get_calibration() :: get_result
   def get_calibration, do: {@accel_offset_x_lsb_addr, 22}
 
+  @doc """
+  Command to get sensor axis remapping
+  """
   @spec get_axis_mapping() :: get_result
   def get_axis_mapping, do: {@axis_map_config_addr, 2}
 
+  @doc """
+  Command to read latest euler angles from fusion mode
+  """
   @spec get_euler_reading() :: get_result
   def get_euler_reading, do: {@euler_h_lsb_addr, 6}
 
+  @doc """
+  Command to read latest magnetometer values
+  """
   @spec get_magnetometer_reading() :: get_result
   def get_magnetometer_reading, do: {@mag_data_x_lsb_addr, 6}
 
+  @doc """
+  Command to read latest gyroscope values
+  """
   @spec get_gyroscope_reading() :: get_result
   def get_gyroscope_reading, do: {@gyro_data_x_lsb_addr, 6}
 
+  @doc """
+  Command to read latest accelerometer values
+  """
   @spec get_accelerometer_reading() :: get_result
   def get_accelerometer_reading, do: {@accel_data_x_lsb_addr, 6}
 
+  @doc """
+  Command to read latest linear acceleration values
+  """
   @spec get_linear_acceleration_reading() :: get_result
   def get_linear_acceleration_reading, do: {@linear_accel_data_x_lsb_addr, 6}
 
+  @doc """
+  Command to read latest gravity values
+  """
   @spec get_gravity_reading() :: get_result
   def get_gravity_reading, do: {@gravity_data_x_lsb_addr, 6}
 
+  @doc """
+  Command to read latest quaternion values
+  """
   @spec get_quaternion_reading() :: get_result
   def get_quaternion_reading, do: {@quaternion_data_w_lsb_addr, 8}
 
+  @doc """
+  Command to read latest temperature value
+  """
   @spec get_temperature_reading() :: get_result
   def get_temperature_reading, do: {@temp_addr, 1}
 
+  @doc """
+  Takes binary data returned from sensor system status and returns decoded string
+  """
   @spec decode_system_status(binary) :: String.t
   def decode_system_status(data) do
     case data do
@@ -315,6 +370,16 @@ defmodule BNO055 do
     end
   end
 
+  @doc """
+  Takes binary data returned from sensor self test and returns decoded data in a map
+
+  %{
+    mcu: "Pass",
+    gyro: "Pass",
+    mag: "Fail",
+    accel: "Fail"
+  }
+  """
   @spec decode_self_test_result(binary) :: map
   def decode_self_test_result(data) do
     <<
@@ -333,6 +398,9 @@ defmodule BNO055 do
     }
   end
 
+  @doc """
+  Takes binary data returned from sensor error data and returns decoded string
+  """
   @spec decode_system_error_data(binary) :: String.t
   def decode_system_error_data(data) do
     case data do
@@ -351,6 +419,17 @@ defmodule BNO055 do
     end
   end
 
+  @doc """
+  Takes binary data returned from sensor revision info and returns decoded map
+
+  %{
+    accel: 0,
+    mag: 0,
+    gyro: 0,
+    bl: 0,
+    sw: 0
+  }
+  """
   @spec decode_revision_info(binary) :: map
   def decode_revision_info(data) do
     <<
@@ -370,6 +449,16 @@ defmodule BNO055 do
     }
   end
 
+  @doc """
+  Takes binary data returned from sensor calibration status and returns decoded map
+
+  %{
+    system: :not_calibrated,
+    gyro: :fully_calibrated,
+    accel: :fully_calibrated,
+    mag: :not_calibrated
+  }
+  """
   @spec decode_calibration_status(binary) :: map
   def decode_calibration_status(data) do
     <<
@@ -382,11 +471,36 @@ defmodule BNO055 do
     %{
       system: (if (sys_stat == 3), do: :fully_calibrated, else: :not_calibrated),
       gyro: (if (gyr_stat == 3), do: :fully_calibrated, else: :not_calibrated),
-      acc: (if (acc_stat == 3), do: :fully_calibrated, else: :not_calibrated),
-      mab: (if (mag_stat == 3), do: :fully_calibrated, else: :not_calibrated)
+      accel: (if (acc_stat == 3), do: :fully_calibrated, else: :not_calibrated),
+      mag: (if (mag_stat == 3), do: :fully_calibrated, else: :not_calibrated)
     }
   end
 
+  @doc """
+  Takes binary data returned from sensor calibration and returns decoded map
+
+  %{
+    %{
+      accel: %{
+        x: 0,
+        y: 0,
+        z: 0,
+        radius: 0
+      },
+      mag: %{
+        x: 0,
+        y: 0,
+        z: 0,
+        radius: 0
+      },
+      gyro: %{
+        x: 0,
+        y: 0,
+        z: 0
+      }
+    }
+  }
+  """
   @spec decode_calibration(binary) :: map
   def decode_calibration(data) when byte_size(data) == 22 do
     <<
@@ -404,7 +518,7 @@ defmodule BNO055 do
     >> = data
 
     %{
-      acc: %{
+      accel: %{
         x: acc_x,
         y: acc_y,
         z: acc_z,
@@ -424,6 +538,18 @@ defmodule BNO055 do
     }
   end
 
+  @doc """
+  Takes binary data returned from sensor axis remapping and returns decoded map
+
+  %{
+      x_axis: :x_axis,
+      y_axis: :y_axis,
+      z_axis: :z_axis,
+      x_sign: :positive,
+      y_sign: :negative,
+      z_sign: :positive
+    }
+  """
   @spec decode_axis_mapping(binary) :: map
   def decode_axis_mapping(data) do
     <<
@@ -547,6 +673,42 @@ defmodule BNO055 do
       y: y_val,
       z: z_val
     }
+  end
+
+  @doc """
+  Takes result from get / set functions and returns binary data
+  to be written to serial port for sensor.
+  """
+  @spec serial_write_data(set_result|get_result) :: binary
+  def serial_write_data({address, data}) when is_binary(data) do
+    <<
+      0xAA :: size(8), # Start Byte
+      0x00 :: size(8), # Write
+      address :: size(8),
+      length(data) :: size(8),
+      data :: binary
+    >>
+  end
+  def serial_write_data({address, length}) when is_integer(length) do
+    <<
+      0xAA :: size(8), # Start Byte
+      0x01 :: size(8), # Read
+      address :: size(8),
+      length :: size(8)
+    >>
+  end
+
+  @doc """
+  Takes result from get / set functions and returns binary data
+  to be written to i2c for sensor. Note get functions will also require
+  reading from i2c.
+  """
+  @spec i2c_write_data(set_result|get_result) :: binary
+  def i2c_write_data({address, data}) when is_binary(data) do
+    <<address :: size(8), data :: binary>>
+  end
+  def i2c_write_data({address, length}) when is_integer(length) do
+    <<address :: size(8)>>
   end
 
 #  use Application
