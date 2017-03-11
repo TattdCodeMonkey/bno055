@@ -16,6 +16,15 @@ defmodule BNO055 do
   ```
   """
 
+  @type register_address :: 0..0x6A
+  @type set_result :: {register_address, binary}
+  @type get_result :: {register_address, pos_integer}
+  @type operational_modes :: :config | :acconly | :magonly | :gyroonly | :accmag |
+    :accgyro | :maggyro | :amg | :imu | :compass | :m4g | :ndof_fmc_off | :ndof
+
+  @type power_mode :: :normal | :lowpower | :suspend
+  @type axis_remap :: :x_axis|:y_axis|:z_axis
+  @type axis_sign :: :positive | :negative
 
   @doc """
   Sets the operational mode of the BNO055 sensor.
@@ -40,6 +49,7 @@ defmodule BNO055 do
   See section 3.3 of the datasheet for more detailed information
   on the operational modes.
   """
+  @spec set_mode(operational_modes) :: set_result
   def set_mode(:config), do: {@opr_mode_addr, <<0x00>>}
   def set_mode(:acconly), do: {@opr_mode_addr, <<0x01>>}
   def set_mode(:magonly), do: {@opr_mode_addr, <<0x02>>}
@@ -60,6 +70,7 @@ defmodule BNO055 do
 
   ** Sensor must be in config mode before receiving this command
   """
+  @spec set_external_crystal(true|false) :: set_result
   def set_external_crystal(true), do: {@sys_trigger_addr, <<0x80>>}
   def set_external_crystal(false), do: {@sys_trigger_addr, <<0x00>>}
 
@@ -69,6 +80,7 @@ defmodule BNO055 do
 
   Data is 22 bytes representing sesnor offsets and calibration data.
   """
+  @spec set_calibration(binary) :: set_result
   def set_calibration(data) when is_binary(data) and byte_size(data) == 22 do
     {@accel_offset_x_lsb_addr, data}
   end
@@ -83,6 +95,7 @@ defmodule BNO055 do
 
   See section 3.2 of datasheet for more detailed information on power modes.
   """
+  @spec set_power_mode(power_mode) :: set_result
   def set_power_mode(:normal), do: {@pwr_mode_addr, <<0x00>>}
   def set_power_mode(:lowpower), do: {@pwr_mode_addr, <<0x01>>}
   def set_power_mode(:suspend), do: {@pwr_mode_addr, <<0x02>>}
@@ -93,13 +106,19 @@ defmodule BNO055 do
   The Sensor will be unavailable while reseting and your app should sleep before executing
   the next command.
   """
+  @spec reset() :: set_result
   def reset(), do: {@sys_trigger_addr, <<0x20>>}
 
+  @doc """
+
+  """
+  @spec reset_system_trigger() :: set_result
   def reset_system_trigger(), do: {@sys_trigger_addr, <<0x00>>}
 
   @doc """
   Sets the current register page for the BNO055. Valid pages are 0 or 1
   """
+  @spec set_page(0|1) :: set_result
   def set_page(0), do:  {@page_id_addr, <<0>>}
   def set_page(1), do:  {@page_id_addr, <<1>>}
   def set_page(inv_page), do: raise ArgumentError, "Invalid page #{inv_page} given!"
@@ -130,6 +149,7 @@ defmodule BNO055 do
 
   See section 3.6.1 of the datasheet for more details on output units
   """
+  @spec set_output_units(:windows|:android, :celsius|:fahrenheit, :degrees|:radians, :dps|:rps, :ms2|:mg) :: set_result
   def set_output_units(orientation, temp, euler, gyro, acc) do
     orientation_val = case orientation do
       :windows -> 0
@@ -171,42 +191,117 @@ defmodule BNO055 do
     }
   end
 
+  @doc """
+  Sets the axis remap for each of the 3 axis, as well as the sign for each axis as :positive or :negative (inverted)
+
+  Valid axis remap values - :x_axis, :y_axis, :z_axis
+  Valid axis sign values - :positive, :negative
+
+  Note two axises cannot be mapped to the same axis remap value.
+
+  See section 3.4 of the datasheet for more information.
+  """
+  @spec set_axis_mapping(axis_remap, axis_remap, axis_remap, axis_sign, axis_sign, axis_sign) :: set_result
   def set_axis_mapping(x, y, z, x_sign, y_sign, z_sign) do
-    raise NotImplemented, ""
+
+    x_val = case x do
+      :x_axis -> 0
+      :y_axis -> 1
+      :z_axis -> 2
+      _ -> raise ArgumentError, "Invalid x axis mapping #{x} given!"
+    end
+    y_val = case y do
+      :x_axis -> 0
+      :y_axis -> 1
+      :z_axis -> 2
+      _ -> raise ArgumentError, "Invalid y axis mapping #{y} given!"
+    end
+    z_val = case z do
+      :x_axis -> 0
+      :y_axis -> 1
+      :z_axis -> 2
+      _ -> raise ArgumentError, "Invalid z axis mapping #{z} given!"
+    end
+
+    x_sign_val = case x_sign do
+      :positive -> 0
+      :negative -> 1
+      _ -> raise ArgumentError, "Invalid x axis sign mapping #{x_sign} given!"
+    end
+    y_sign_val = case y_sign do
+      :positive -> 0
+      :negative -> 1
+      _ -> raise ArgumentError, "Invalid y axis sign mapping #{y_sign} given!"
+    end
+    z_sign_val = case z_sign do
+      :positive -> 0
+      :negative -> 1
+      _ -> raise ArgumentError, "Invalid z axis sign mapping #{z_sign} given!"
+    end
+
+    data = <<
+      0 :: size(2),
+      z_val :: size(2),
+      y_val :: size(2),
+      x_val :: size(2),
+      0 :: size(5),
+      x_sign_val :: size(1),
+      y_sign_val :: size(1),
+      z_sign_val :: size(1)
+    >>
+
+    {@axis_map_config_addr, data}
   end
 
+  @spec get_chip_address() :: get_result
   def get_chip_address, do:  {@chip_id_addr, 1}
 
+  @spec get_system_status() :: get_result
   def get_system_status, do: {@sys_stat_addr, 1}
 
+  @spec get_self_test_result() :: get_result
   def get_self_test_result, do: {@selftest_result_addr, 1}
 
+  @spec get_system_error_data() :: get_result
   def get_system_error_data, do: {@sys_err_addr, 1}
 
+  @spec get_revision_info() :: get_result
   def get_revision_info, do: {@accel_rev_id_addr, 6}
 
+  @spec get_calibration_status() :: get_result
   def get_calibration_status, do: {@calib_stat_addr, 1}
 
+  @spec get_calibration() :: get_result
   def get_calibration, do: {@accel_offset_x_lsb_addr, 22}
 
+  @spec get_axis_mapping() :: get_result
   def get_axis_mapping, do: {@axis_map_config_addr, 2}
 
+  @spec get_euler_reading() :: get_result
   def get_euler_reading, do: {@euler_h_lsb_addr, 6}
 
+  @spec get_magnetometer_reading() :: get_result
   def get_magnetometer_reading, do: {@mag_data_x_lsb_addr, 6}
 
+  @spec get_gyroscope_reading() :: get_result
   def get_gyroscope_reading, do: {@gyro_data_x_lsb_addr, 6}
 
+  @spec get_accelerometer_reading() :: get_result
   def get_accelerometer_reading, do: {@accel_data_x_lsb_addr, 6}
 
+  @spec get_linear_acceleration_reading() :: get_result
   def get_linear_acceleration_reading, do: {@linear_accel_data_x_lsb_addr, 6}
 
+  @spec get_gravity_reading() :: get_result
   def get_gravity_reading, do: {@gravity_data_x_lsb_addr, 6}
 
+  @spec get_quaternion_reading() :: get_result
   def get_quaternion_reading, do: {@quaternion_data_w_lsb_addr, 8}
 
+  @spec get_temperature_reading() :: get_result
   def get_temperature_reading, do: {@temp_addr, 1}
 
+  @spec decode_system_status(binary) :: String.t
   def decode_system_status(data) do
     case data do
       0 -> "Idle"
@@ -220,6 +315,7 @@ defmodule BNO055 do
     end
   end
 
+  @spec decode_self_test_result(binary) :: map
   def decode_self_test_result(data) do
     <<
       _ :: size(4),
@@ -237,6 +333,7 @@ defmodule BNO055 do
     }
   end
 
+  @spec decode_system_error_data(binary) :: String.t
   def decode_system_error_data(data) do
     case data do
       0x00 -> "No error"
@@ -254,6 +351,7 @@ defmodule BNO055 do
     end
   end
 
+  @spec decode_revision_info(binary) :: map
   def decode_revision_info(data) do
     <<
       accel_rev::size(8),
@@ -272,6 +370,7 @@ defmodule BNO055 do
     }
   end
 
+  @spec decode_calibration_status(binary) :: map
   def decode_calibration_status(data) do
     <<
       sys_stat::size(2),
@@ -288,7 +387,8 @@ defmodule BNO055 do
     }
   end
 
-  def decode_calibration(data) do
+  @spec decode_calibration(binary) :: map
+  def decode_calibration(data) when byte_size(data) == 22 do
     <<
       acc_x :: size(16)-signed-little,
       acc_y :: size(16)-signed-little,
@@ -324,6 +424,7 @@ defmodule BNO055 do
     }
   end
 
+  @spec decode_axis_mapping(binary) :: map
   def decode_axis_mapping(data) do
     <<
       _ :: size(2),
@@ -352,6 +453,7 @@ defmodule BNO055 do
   defp get_axis_sign_from_val(0), do: :positive
   defp get_axis_sign_from_val(1), do: :negative
 
+  @spec decode_euler_reading(binary, :degrees|:radians) :: map | :no_data
   def decode_euler_reading(data, units \\ :degrees)
   def decode_euler_reading(<<>>, _), do: :no_data
   def decode_euler_reading(data, :degrees), do: _decode_euler(data, 16.0)
@@ -375,30 +477,37 @@ defmodule BNO055 do
   	}
   end
 
+  @spec decode_magnetometer_reading(binary) :: map | :no_data
   def decode_magnetometer_reading(<<>>), do: :no_data
   def decode_magnetometer_reading(data), do: _decode_vector(data, 16.0)
 
+  @spec decode_gyroscope_reading(binary, :dps|:rps) :: map | :no_data
   def decode_gyroscope_reading(data, units \\ :dps)
   def decode_gyroscope_reading(<<>>, _), do: :no_data
   def decode_gyroscope_reading(data, :dps), do: _decode_vector(data, 16.0)
   def decode_gyroscope_reading(data, :rps), do: _decode_vector(data, 900.0)
 
+  @spec decode_accelerometer_reading(binary, :ms2|:mg) :: map | :no_data
   def decode_accelerometer_reading(data, units \\ :ms2)
   def decode_accelerometer_reading(<<>>, _), do: :no_data
   def decode_accelerometer_reading(data, :ms2), do: _decode_vector(data, 100.0)
   def decode_accelerometer_reading(data, :mg), do: _decode_vector(data, 1.0)
 
+  @spec decode_linear_acceleration_reading(binary, :ms2|:mg) :: map | :no_data
   def decode_linear_acceleration_reading(data, units \\ :ms2)
   def decode_linear_acceleration_reading(<<>>, _), do: :no_data
   def decode_linear_acceleration_reading(data, :ms2), do: _decode_vector(data, 100.0)
   def decode_linear_acceleration_reading(data, :mg), do: _decode_vector(data, 1.0)
 
+  @spec decode_gravity_reading(binary, :ms2|:mg) :: map | :no_data
   def decode_gravity_reading(data, units \\ :ms2)
   def decode_gravity_reading(<<>>, _), do: :no_data
   def decode_gravity_reading(data, :ms2), do: _decode_vector(data, 100.0)
   def decode_gravity_reading(data, :mg), do: _decode_vector(data, 1.0)
 
   @quaternion_scale (1.0 / :math.pow(2, 14))
+
+  @spec decode_quaternion_reading(binary) :: map | :no_data
   def decode_quaternion_reading(<<>>), do: :no_data
   def decode_quaternion_reading(data) do
     <<
