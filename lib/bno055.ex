@@ -14,7 +14,7 @@ defmodule BNO055 do
 
   Get functions return tuple with address and number of bytes to read
   ```elixir
-  iex> BNO.get_chip_address
+  iex> BNO055.get_chip_address
   {0x00, 1}
   ```
   Decode functions take the data returned from get functions and returns formatted results
@@ -710,29 +710,4 @@ defmodule BNO055 do
   def i2c_write_data({address, length}) when is_integer(length) do
     <<address :: size(8)>>
   end
-
-#  use Application
-#  require Logger
-#
-#  def start(_type, _args) do
-#    import Supervisor.Spec, warn: false
-#    sensors = BNO055.Configuration.sensors
-#    case BNO055.Configuration.validate_sensors(sensors) do
-#      {:error, errs} ->
-#        Logger.error("Errors found validating sensor(s) config: #{inspect sensors}")
-#        Enum.map errs, fn err ->
-#          Logger.error(err)
-#        end
-#        raise "Invalid sensor(s) configuration"
-#      :ok -> :ok
-#    end
-#
-#    children = [
-#      supervisor(BNO055.Supervisor, [])
-#    ]
-#
-#    opts = [strategy: :one_for_one, name: __MODULE__]
-#
-#    Supervisor.start_link(children, opts)
-#  end
 end
