@@ -17,6 +17,16 @@ defmodule BNO055 do
   iex> BNO055.get_chip_address
   {0x00, 1}
   ```
+
+  `write` functions take the get or set results and return a binary for writing to the 
+  device based on the protocol type
+
+  iex> BNO055.set_mode(:config) |> BNO055.i2c_write_data
+  <<0x3D, 0x00>>
+
+  iex> BNO055.set_mode(:config) |> BNO055.serial_write_data
+  <<0xAA, 0x00, 0x3D, 0x01, 0x00>>
+
   Decode functions take the data returned from get functions and returns formatted results
   """
 
@@ -80,13 +90,52 @@ defmodule BNO055 do
 
   @doc """
   Set the sensor calibration offsets by sending previously generated
-  calibration data received from `get_calibration/0`
+  calibration data received from `get_calibration/0` or decoded map
+  from calibration data.
 
-  Data is 22 bytes representing sesnor offsets and calibration data.
+  ```
+  %{
+    accel: %{
+      x: acc_x,
+      y: acc_y,
+      z: acc_z,
+      radius: acc_radius
+    },
+    mag: %{
+      x: mag_x,
+      y: mag_y,
+      z: mag_z,
+      radius: mag_radius
+    },
+    gyro: %{
+      x: gyro_x,
+      y: gyro_y,
+      z: gyro_z
+    }
+  }
+  ```
+
+  See section 3.6.4 of datasheet for detailed information about the valid
+  values for sensor configuration.
   """
   @spec set_calibration(binary) :: set_result
   def set_calibration(data) when is_binary(data) and byte_size(data) == 22 do
     {@accel_offset_x_lsb_addr, data}
+  end
+  def set_calibration(%{accel: %{x: acc_x, y: acc_y, z: acc_z, radius: acc_radius}, mag: %{x: mag_x, y: mag_y, z: mag_z, radius: mag_radius}, gyro: %{x: gyro_x, y: gyro_y, z: gyro_z}}) do
+    {@accel_offset_x_lsb_addr, <<
+      acc_x :: size(16)-signed-little,
+      acc_y :: size(16)-signed-little,
+      acc_z :: size(16)-signed-little,
+      mag_x :: size(16)-signed-little,
+      mag_y :: size(16)-signed-little,
+      mag_z :: size(16)-signed-little,
+      gyro_x :: size(16)-signed-little,
+      gyro_y :: size(16)-signed-little,
+      gyro_z :: size(16)-signed-little,
+      acc_radius :: size(16)-signed-little,
+      mag_radius :: size(16)-signed-little
+    >>}
   end
 
   @doc """
@@ -104,20 +153,6 @@ defmodule BNO055 do
   def set_power_mode(:lowpower), do: {@pwr_mode_addr, <<0x01>>}
   def set_power_mode(:suspend), do: {@pwr_mode_addr, <<0x02>>}
   def set_power_mode(inv_mode), do: raise ArgumentError, "Invalid power mode #{inv_mode} given!"
-
-  @doc """
-  BNO055 is reset, rebooting microcontroller and clearing current configuration.
-  The Sensor will be unavailable while reseting and your app should sleep before executing
-  the next command.
-  """
-  @spec reset() :: set_result
-  def reset(), do: {@sys_trigger_addr, <<0x20>>}
-
-  @doc """
-
-  """
-  @spec reset_system_trigger() :: set_result
-  def reset_system_trigger(), do: {@sys_trigger_addr, <<0x00>>}
 
   @doc """
   Sets the current register page for the BNO055. Valid pages are 0 or 1
@@ -212,19 +247,26 @@ defmodule BNO055 do
       :x_axis -> 0
       :y_axis -> 1
       :z_axis -> 2
-      _ -> raise ArgumentError, "Invalid x axis mapping #{x} given!"
+      _ -> raise ArgumentError, "Invalid x axis mapping x: #{x} given!"
     end
     y_val = case y do
       :x_axis -> 0
       :y_axis -> 1
       :z_axis -> 2
-      _ -> raise ArgumentError, "Invalid y axis mapping #{y} given!"
+      _ -> raise ArgumentError, "Invalid y axis mapping y: #{y} given!"
     end
     z_val = case z do
       :x_axis -> 0
       :y_axis -> 1
       :z_axis -> 2
-      _ -> raise ArgumentError, "Invalid z axis mapping #{z} given!"
+      _ -> raise ArgumentError, "Invalid z axis mapping z: #{z} given!"
+    end
+
+    case {x,y,z} do
+      {_, ^x, _} -> raise ArgumentError, "Invalid axis mappings given, axis mappings must be mutually exclusive. x == y"
+      {_, _, ^x} -> raise ArgumentError, "Invalid axis mappings given, axis mappings must be mutually exclusive. x == z"
+      {_, _, ^y} -> raise ArgumentError, "Invalid axis mappings given, axis mappings must be mutually exclusive. y == z"
+      _ -> true
     end
 
     x_sign_val = case x_sign do
@@ -256,6 +298,30 @@ defmodule BNO055 do
 
     {@axis_map_config_addr, data}
   end
+  @spec set_axis_mapping(map) :: set_result
+  def set_axis_mapping(%{x_axis: x, y_axis: y, z_axis: z, x_sign: x_sign, y_sign: y_sign, z_sign: z_sign}) do
+    set_axis_mapping(
+      x,
+      y,
+      z,
+      x_sign,
+      y_sign,
+      z_sign
+    )
+  end
+  @doc """
+  BNO055 is reset, rebooting microcontroller and clearing current configuration.
+  The Sensor will be unavailable while reseting and your app should sleep before executing
+  the next command.
+  """
+  @spec reset() :: set_result
+  def reset(), do: {@sys_trigger_addr, <<0x20>>}
+
+  @doc """
+  Resets the system trigger back to 0x00. All bits off.
+  """
+  @spec reset_system_trigger() :: set_result
+  def reset_system_trigger(), do: {@sys_trigger_addr, <<0x00 :: size(8)>>}
 
   @doc """
   Command to get the sensor chip address
@@ -685,7 +751,7 @@ defmodule BNO055 do
       0xAA :: size(8), # Start Byte
       0x00 :: size(8), # Write
       address :: size(8),
-      length(data) :: size(8),
+      byte_size(data) :: size(8),
       data :: binary
     >>
   end
