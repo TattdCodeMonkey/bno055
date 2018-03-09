@@ -21,10 +21,10 @@ defmodule BNO055 do
   `write` functions take the get or set results and return a binary for writing to the 
   device based on the protocol type
 
-  iex> BNO055.set_mode(:config) |> BNO055.i2c_write_data
+  iex> BNO055.set_mode(:config) |> BNO055.IO.I2c.write_data
   <<0x3D, 0x00>>
 
-  iex> BNO055.set_mode(:config) |> BNO055.serial_write_data
+  iex> BNO055.set_mode(:config) |> BNO055.IO.Serial.write_data
   <<0xAA, 0x00, 0x3D, 0x01, 0x00>>
 
   Decode functions take the data returned from get functions and returns formatted results
@@ -423,15 +423,15 @@ defmodule BNO055 do
   Takes binary data returned from sensor system status and returns decoded string
   """
   @spec decode_system_status(binary) :: String.t
-  def decode_system_status(data) do
+  def decode_system_status(data) when is_binary(data) do    
     case data do
-      0 -> "Idle"
-      1 -> "System Error"
-      2 -> "Initializing Peripherals"
-      3 -> "System Iniitalization"
-      4 -> "Executing Self-Test"
-      5 -> "Sensor fusion algorithm running"
-      6 -> "System running without fusion algorithms"
+      <<0>> -> "Idle"
+      <<1>> -> "System Error"
+      <<2>> -> "Initializing Peripherals"
+      <<3>> -> "System Iniitalization"
+      <<4>> -> "Executing Self-Test"
+      <<5>> -> "Sensor fusion algorithm running"
+      <<6>> -> "System running without fusion algorithms"
       _ -> "Unknown status: #{data}"
     end
   end
@@ -447,7 +447,7 @@ defmodule BNO055 do
   }
   """
   @spec decode_self_test_result(binary) :: map
-  def decode_self_test_result(data) do
+  def decode_self_test_result(data) when is_binary(data) do
     <<
       _ :: size(4),
       mcu_st :: size(1),
@@ -468,19 +468,19 @@ defmodule BNO055 do
   Takes binary data returned from sensor error data and returns decoded string
   """
   @spec decode_system_error_data(binary) :: String.t
-  def decode_system_error_data(data) do
+  def decode_system_error_data(data) when is_binary(data) do
     case data do
-      0x00 -> "No error"
-      0x01 -> "Peripheral initialization error"
-      0x02 -> "System initialization error"
-      0x03 -> "Self test result failed"
-      0x04 -> "Register map value out of range"
-      0x05 -> "Register map address out of range"
-      0x06 -> "Register map write error"
-      0x07 -> "BNO low power mode not available for selected operat ion mode"
-      0x08 -> "Accelerometer power mode not available"
-      0x09 -> "Fusion algorithm configuration error"
-      0x0A -> "Sensor configuration error"
+      <<0x00>> -> "No error"
+      <<0x01>> -> "Peripheral initialization error"
+      <<0x02>> -> "System initialization error"
+      <<0x03>> -> "Self test result failed"
+      <<0x04>> -> "Register map value out of range"
+      <<0x05>> -> "Register map address out of range"
+      <<0x06>> -> "Register map write error"
+      <<0x07>> -> "BNO low power mode not available for selected operation mode"
+      <<0x08>> -> "Accelerometer power mode not available"
+      <<0x09>> -> "Fusion algorithm configuration error"
+      <<0x0A>> -> "Sensor configuration error"
       _ -> "Unknown system error value: #{data}"
     end
   end
@@ -497,7 +497,7 @@ defmodule BNO055 do
   }
   """
   @spec decode_revision_info(binary) :: map
-  def decode_revision_info(data) do
+  def decode_revision_info(data) when is_binary(data) do
     <<
       accel_rev::size(8),
       mag_rev::size(8),
@@ -568,7 +568,7 @@ defmodule BNO055 do
   }
   """
   @spec decode_calibration(binary) :: map
-  def decode_calibration(data) when byte_size(data) == 22 do
+  def decode_calibration(data) when is_binary(data) and byte_size(data) == 22 do
     <<
       acc_x :: size(16)-signed-little,
       acc_y :: size(16)-signed-little,
@@ -617,7 +617,7 @@ defmodule BNO055 do
     }
   """
   @spec decode_axis_mapping(binary) :: map
-  def decode_axis_mapping(data) do
+  def decode_axis_mapping(data) when is_binary(data) do
     <<
       _ :: size(2),
       z :: size(2),
@@ -645,11 +645,20 @@ defmodule BNO055 do
   defp get_axis_sign_from_val(0), do: :positive
   defp get_axis_sign_from_val(1), do: :negative
 
+  @degrees_factor 16.0
+  @radians_factor 900.0
+  @ms2_factor 100.0
+  @mg_factor 1.0
+
+  @doc """
+  Decodes the absolute orientation as a map with heading, roll and pitch angles. Supports both
+  degrees and radians, default is degrees.
+  """
   @spec decode_euler_reading(binary, :degrees|:radians) :: map | :no_data
   def decode_euler_reading(data, units \\ :degrees)
   def decode_euler_reading(<<>>, _), do: :no_data
-  def decode_euler_reading(data, :degrees), do: _decode_euler(data, 16.0)
-  def decode_euler_reading(data, :radians), do: _decode_euler(data, 900.0)
+  def decode_euler_reading(data, :degrees), do: _decode_euler(data, @degrees_factor)
+  def decode_euler_reading(data, :radians), do: _decode_euler(data, @radians_factor)
 
   defp _decode_euler(data, unit_factor) do
     <<
@@ -669,36 +678,60 @@ defmodule BNO055 do
   	}
   end
 
+  @doc """
+  Decodes the magnetometer reading returning a map of the current values for each
+  axis in micro-Teslas
+  """
   @spec decode_magnetometer_reading(binary) :: map | :no_data
   def decode_magnetometer_reading(<<>>), do: :no_data
-  def decode_magnetometer_reading(data), do: _decode_vector(data, 16.0)
-
+  def decode_magnetometer_reading(data), do: _decode_vector(data, @degrees_factor)
+  
+  @doc """
+  Decodes the gyroscope (angular velocity) reading returning a map of the current values for each
+  axis in either degrees per second or radians per second. Default is degrees per second.
+  """
   @spec decode_gyroscope_reading(binary, :dps|:rps) :: map | :no_data
   def decode_gyroscope_reading(data, units \\ :dps)
   def decode_gyroscope_reading(<<>>, _), do: :no_data
-  def decode_gyroscope_reading(data, :dps), do: _decode_vector(data, 16.0)
-  def decode_gyroscope_reading(data, :rps), do: _decode_vector(data, 900.0)
+  def decode_gyroscope_reading(data, :dps), do: _decode_vector(data, @degrees_factor)
+  def decode_gyroscope_reading(data, :rps), do: _decode_vector(data, @radians_factor)
 
+  @doc """
+  Decodes the accelerometer reading returning a map of the current values for each
+  axis in meters/second^2 or milli-g. Default is meters/second^2
+  """
   @spec decode_accelerometer_reading(binary, :ms2|:mg) :: map | :no_data
   def decode_accelerometer_reading(data, units \\ :ms2)
   def decode_accelerometer_reading(<<>>, _), do: :no_data
-  def decode_accelerometer_reading(data, :ms2), do: _decode_vector(data, 100.0)
-  def decode_accelerometer_reading(data, :mg), do: _decode_vector(data, 1.0)
+  def decode_accelerometer_reading(data, :ms2), do: _decode_vector(data, @ms2_factor)
+  def decode_accelerometer_reading(data, :mg), do: _decode_vector(data, @mg_factor)
 
+  @doc """
+  Decodes the linear acceleration (acceleration from movement, not from gravity) reading 
+  returning a map of the current values for each axis in meters/second^2 or milli-g. 
+  Default is meters/second^2
+  """
   @spec decode_linear_acceleration_reading(binary, :ms2|:mg) :: map | :no_data
   def decode_linear_acceleration_reading(data, units \\ :ms2)
   def decode_linear_acceleration_reading(<<>>, _), do: :no_data
-  def decode_linear_acceleration_reading(data, :ms2), do: _decode_vector(data, 100.0)
-  def decode_linear_acceleration_reading(data, :mg), do: _decode_vector(data, 1.0)
+  def decode_linear_acceleration_reading(data, :ms2), do: _decode_vector(data, @ms2_factor)
+  def decode_linear_acceleration_reading(data, :mg), do: _decode_vector(data, @mg_factor)
 
+  @doc """
+  Decodes the gravity acceleration reading returning a map of the current values for each
+  axis in meters/second^2 or milli-g. Default is meters/second^2
+  """
   @spec decode_gravity_reading(binary, :ms2|:mg) :: map | :no_data
   def decode_gravity_reading(data, units \\ :ms2)
   def decode_gravity_reading(<<>>, _), do: :no_data
-  def decode_gravity_reading(data, :ms2), do: _decode_vector(data, 100.0)
-  def decode_gravity_reading(data, :mg), do: _decode_vector(data, 1.0)
+  def decode_gravity_reading(data, :ms2), do: _decode_vector(data, @ms2_factor)
+  def decode_gravity_reading(data, :mg), do: _decode_vector(data, @mg_factor)
 
   @quaternion_scale (1.0 / :math.pow(2, 14))
 
+  @doc """
+  Decodes the orientation returning a map of the X, Y, Z, & W quaternion values
+  """
   @spec decode_quaternion_reading(binary) :: map | :no_data
   def decode_quaternion_reading(<<>>), do: :no_data
   def decode_quaternion_reading(data) do
@@ -739,41 +772,5 @@ defmodule BNO055 do
       y: y_val,
       z: z_val
     }
-  end
-
-  @doc """
-  Takes result from get / set functions and returns binary data
-  to be written to serial port for sensor.
-  """
-  @spec serial_write_data(set_result|get_result) :: binary
-  def serial_write_data({address, data}) when is_binary(data) do
-    <<
-      0xAA :: size(8), # Start Byte
-      0x00 :: size(8), # Write
-      address :: size(8),
-      byte_size(data) :: size(8),
-      data :: binary
-    >>
-  end
-  def serial_write_data({address, length}) when is_integer(length) do
-    <<
-      0xAA :: size(8), # Start Byte
-      0x01 :: size(8), # Read
-      address :: size(8),
-      length :: size(8)
-    >>
-  end
-
-  @doc """
-  Takes result from get / set functions and returns binary data
-  to be written to i2c for sensor. Note get functions will also require
-  reading from i2c.
-  """
-  @spec i2c_write_data(set_result|get_result) :: binary
-  def i2c_write_data({address, data}) when is_binary(data) do
-    <<address :: size(8), data :: binary>>
-  end
-  def i2c_write_data({address, length}) when is_integer(length) do
-    <<address :: size(8)>>
-  end
+  end  
 end
