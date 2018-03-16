@@ -22,7 +22,7 @@ defmodule BNO055 do
   device based on the protocol type
 
   iex> BNO055.set_mode(:config) |> BNO055.IO.I2c.write_data
-  <<0x3D, 0x00>>
+  {:write, <<0x3D, 0x00>>}
 
   iex> BNO055.set_mode(:config) |> BNO055.IO.Serial.write_data
   <<0xAA, 0x00, 0x3D, 0x01, 0x00>>
